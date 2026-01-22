@@ -1,0 +1,12 @@
+pdf2image
+dotenv 
+json 
+re
+fastapi
+starlette.concurrency
+openai
+typing
+pathlib
+os
+python-dotenv
+
