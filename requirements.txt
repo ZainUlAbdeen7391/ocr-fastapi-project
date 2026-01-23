@@ -1,12 +1,5 @@
-pdf2image
-dotenv 
-json 
-re
 fastapi
-starlette.concurrency
+uvicorn
 openai
-typing
-pathlib
-os
+pdf2image
 python-dotenv
-
