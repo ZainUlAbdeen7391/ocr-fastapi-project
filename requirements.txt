@@ -3,3 +3,5 @@ uvicorn
 openai
 pdf2image
 python-dotenv
+requests
+
