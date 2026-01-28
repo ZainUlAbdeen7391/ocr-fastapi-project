@@ -1,11 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from typing import List
-from starlette.concurrency import run_in_threadpool
 import re
-import os
-from openai import OpenAI
-from urdu_json import parse_gpt_json
+from starlette.concurrency import run_in_threadpool
+from Prompt_analyzer_agent import structure_with_gpt
+from validation_file import validate_ocr_file
 from input_module import ocr_image_bytes, ocr_pdf_bytes
 from dotenv import load_dotenv
 
@@ -22,7 +21,6 @@ def clean_text(text: str, keep_newlines: bool = False) -> str:
 
     return text.strip()
 
-
 # FastAPI
 
 app = FastAPI(
@@ -37,147 +35,170 @@ async def root():
     return {
         "service": "Devminds OCR",
         "languages": ["English", "Urdu", "Arabic"],
-        "formats": ["PNG", "JPG", "PDF"],
+        "formats": [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"],
         "docs": "PDFs Files"
     }
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy, PLease visit documentation:"}
 
-# For Images
+# For Images without GPT Model 
 
 @app.post("/extract-images")
 async def extract_images(
     files: List[UploadFile] = File(..., description="Upload multiple image files:")
 ):
-    results = {}
-
     for file in files:
-        if not file.content_type.startswith("image/"):
-            results[file.filename] = "Unsupported image format"
-            continue
+
+        validation = validate_ocr_file(file.filename)
+
+        if validation["type"] != "image":
+            return JSONResponse(content={
+                "success": False,
+                "valid": False,
+                "type": validation.get("type"),
+                "message": "Unsupported file format",
+                "allowed_image_formats": validation.get("allowed_image_formats", [])
+            })
 
         try:
             image_bytes = await file.read()
-
-            raw_text = await run_in_threadpool(
-                ocr_image_bytes, image_bytes
-            )
-
-            
+            raw_text = await run_in_threadpool(ocr_image_bytes, image_bytes)
             cleaned_text = clean_text(raw_text, keep_newlines=True)
-
-            results[file.filename] = cleaned_text
+            return JSONResponse(content={
+                "success": True,
+                "valid": True,
+                "type": "image",
+                "message": "OCR extracted successfully",
+                "text": cleaned_text
+            })
 
         except Exception as e:
-            results[file.filename] = f"OCR failed: {str(e)}"
+            return JSONResponse(content={
+                "success": False,
+                "valid": False,
+                "type": "image",
+                "message": f"OCR failed: {str(e)}"
+            })
 
-    return JSONResponse(content=results)
-
-
-# for pdfs
+# For PDF without GPT Model 
 
 @app.post("/extract-pdfs")
 async def extract_pdfs(
     files: List[UploadFile] = File(..., description="Upload multiple PDF files:")
 ):
-    results = {}
+    combined_texts = []
 
     for file in files:
-        if file.content_type != "application/pdf":
-            results[file.filename] = "Unsupported PDF format"
-            continue
+
+        validation = validate_ocr_file(file.filename)
+
+        if validation.get("type") != "pdf":
+            return JSONResponse(content={
+                "success": False,
+                "valid": False,
+                "type": validation.get("type"),
+                "message": "Unsupported file format",
+                "allowed_document_formats": validation.get("allowed_document_formats", [])
+            })
 
         try:
             pdf_bytes = await file.read()
-
-            raw_text = await run_in_threadpool(
-                ocr_pdf_bytes, pdf_bytes
-            )
-
             
+            raw_text = await run_in_threadpool(ocr_pdf_bytes, pdf_bytes)
             cleaned_text = clean_text(raw_text, keep_newlines=True)
-
-            results[file.filename] = cleaned_text
+            combined_texts.append(cleaned_text)
 
         except Exception as e:
-            results[file.filename] = f"OCR failed: {str(e)}"
+            return JSONResponse(content={
+                "success": False,
+                "valid": False,
+                "type": "pdf",
+                "message": f"OCR failed: {str(e)}"
+            })
 
-    return JSONResponse(content=results)
-
-
-# This Code is using for Structured Output 
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-def structure_with_gpt(ocr_text: str, prompt: str) -> dict:
-
-    final_prompt = prompt.replace("{text}", ocr_text)
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": "You extract structured data from OCR text."},
-            {"role": "user", "content": final_prompt}
-        ],
-        temperature=0.2
-    )
-
-    return response.choices[0].message.content
-
-
-# this endpoint is using for Structuring Extraction
+    return JSONResponse(content={
+        "success": True,
+        "valid": True,
+        "type": "pdf",
+        "message": "OCR extracted successfully",
+        "data": "\n\n".join(combined_texts)
+    })
+    
+# This Endpoint is using for text extraction with structing data
 
 @app.post("/ocr/structure")
 async def structure_text(
-    files: List[UploadFile] = File(..., description="Load an images and PDFs:"),
-    structuring_prompt: str = Form(...,description="Write a prompt for structuring Output:")
+    files: List[UploadFile] = File(..., description="Upload images or PDFs for text extraction:"),
+    structuring_prompt: str = Form(None, description="Write what you want to extract text from the images and PDFs files:")
 ):
-    combined_ocr_text = []
+    combined_texts = []
+    processed_types = set()
 
     for file in files:
-        file_bytes = await file.read()
+        validation = validate_ocr_file(file.filename)
 
-        if file.content_type.startswith("image/"):
-            raw_text = await run_in_threadpool(
-                ocr_image_bytes, file_bytes
-            )
+        if not validation["valid"]:
+            return JSONResponse(content={
+                "success": False,
+                "valid": False,
+                "type": validation.get("type"),
+                "message": "Unsupported file format",
+                "allowed_image_formats": validation.get("allowed_image_formats", []),
+                "allowed_document_formats": validation.get("allowed_document_formats", [])
+            })
 
-        elif file.content_type == "application/pdf":
-            raw_text = await run_in_threadpool(
-                ocr_pdf_bytes, file_bytes
-            )
+        processed_types.add(validation.get("type"))
 
-        else:
-            continue
-        
-        cleaned_text = clean_text(raw_text, keep_newlines=True)
-        combined_ocr_text.append(cleaned_text)
+        try:
+            file_bytes = await file.read()
 
-    full_text = "\n\n".join(combined_ocr_text).strip()
+            if validation["type"] == "image":
+                raw_text = await run_in_threadpool(ocr_image_bytes, file_bytes)
+            elif validation["type"] == "pdf":
+                raw_text = await run_in_threadpool(ocr_pdf_bytes, file_bytes)
+
+            cleaned_text = clean_text(raw_text, keep_newlines=True)
+            combined_texts.append(cleaned_text)
+
+        except Exception as e:
+            return JSONResponse(content={
+                "success": False,
+                "valid": False,
+                "type": validation.get("type"),
+                "message": f"OCR failed: {str(e)}"
+            })
+
+    full_text = "\n\n".join(combined_texts).strip()
 
     if not full_text:
-        raise HTTPException(400, "No OCR text extracted")
+        return JSONResponse(content={
+            "success": False,
+            "valid": False,
+            "type": ", ".join(processed_types) if processed_types else None,
+            "message": "No valid OCR text extracted"
+        })
 
     gpt_response = await run_in_threadpool(
         structure_with_gpt,
         full_text,
         structuring_prompt
     )
-    structured_json = parse_gpt_json(gpt_response)
-    return JSONResponse(
-        content={
-            "raw_ocr_text": full_text,
-            "structured_json": structured_json,
-            "display_json": structured_json
-                    
+
+    if not gpt_response.get("success"):
+        return JSONResponse(content=gpt_response)
+
+    return JSONResponse(content={
+        "success": True,
+        "valid": True,
+        "type": ", ".join(processed_types),
+        "message": "OCR and structuring completed successfully",
+        "data": {
+            "raw_text": full_text,
+            "structured_json": gpt_response["data"]
         }
-    )
-
-
-
-
-
-
-
-
+    })
+    
+    
+    
+    

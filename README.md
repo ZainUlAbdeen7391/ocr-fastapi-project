@@ -167,7 +167,6 @@ Normalizes OCR formatting
 Removes invalid symbols
 
 Urdu / Arabic Handling
-fix_rtl_text(text)
 
 
 ⚠️ Important:
@@ -262,3 +261,6 @@ Bulk OCR processing
 Developed by:
 Zain Ch
 OCR & AI Automation Engineer
+
+
+
