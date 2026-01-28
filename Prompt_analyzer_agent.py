@@ -116,6 +116,77 @@ Only include line_items if they exist.
 OCR TEXT:
 {text}
 """
+FIELD_SYNONYMS = {
+    "name": [
+        "name", "full name", "holder name", "person's name", "name of person"
+    ],
+
+    "father_name": [
+        "father name", "father's name", "s/o", "son of", "name of father"
+    ],
+
+    "mother_name": [
+        "mother name", "mother's name", "d/o", "daughter of", "name of mother"
+    ],
+
+    "id_number": [
+        "cnic", "nic", "national id", "identity number",
+        "id no", "id number", "identity no"
+    ],
+
+    "date_of_birth": [
+        "dob", "date of birth", "birth date"
+    ],
+
+    "date_of_issue": [
+        "issue date", "date of issue", "issued on"
+    ],
+
+    "date_of_expiry": [
+        "expiry date", "expiration date", "valid till", "valid until"
+    ],
+
+    "passport_number": [
+        "passport no", "passport number"
+    ],
+
+    "nationality": [
+        "nationality", "country"
+    ],
+
+    "gender": [
+        "gender", "sex"
+    ],
+
+    "address": [
+        "address", "current address", "permanent address", "residence"
+    ]
+}
+
+def normalize_fields(requested_fields: list[str]) -> list[str]:
+    normalized = set()
+
+    for user_field in requested_fields:
+        field_lower = user_field.lower().strip()
+
+        matched = False
+
+        for canonical, synonyms in FIELD_SYNONYMS.items():
+            for s in synonyms:
+                if s in field_lower:
+                    normalized.add(canonical)
+                    matched = True
+                    break
+
+            if matched:
+                break
+
+        if not matched:
+            normalized.add(field_lower.replace(" ", "_"))
+
+    return list(normalized)
+
+
 def build_structuring_prompt(ocr_text: str, requested_fields):
     if requested_fields is None:
         return DEFAULT_OCR_STRUCTURING_PROMPT.replace("{text}", ocr_text)
@@ -151,18 +222,24 @@ OCR TEXT:
 """
 def structure_with_gpt(ocr_text: str, user_prompt: str | None):
 
+    # Requirement 2 — default extraction
     if not user_prompt or not user_prompt.strip():
         final_prompt = DEFAULT_OCR_STRUCTURING_PROMPT.replace("{text}", ocr_text)
 
     else:
         intent = extract_requested_fields(user_prompt)
 
+        # Requirement 3 — invalid prompt
         if intent == "invalid":
             return {
                 "success": False,
                 "valid": False,
                 "message": "Invalid prompt. This prompt is not relevant for OCR extraction."
             }
+
+        # 🔥 IMPORTANT FIX — normalize fields
+        if intent is not None:
+            intent = normalize_fields(intent)
 
         final_prompt = build_structuring_prompt(ocr_text, intent)
 
@@ -186,12 +263,10 @@ def structure_with_gpt(ocr_text: str, user_prompt: str | None):
             "valid": True,
             "data": json.loads(response.choices[0].message.content)
         }
+
     except:
         return {
             "success": False,
             "valid": False,
-            "message": "Invalid json. This prompt is not relevant for structured OCR Extraction"
+            "message": "Invalid JSON returned by model."
         }
-        
-        
-
