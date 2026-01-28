@@ -121,7 +121,7 @@ FIELD_SYNONYMS = {
         "name", "full name", "holder name", "person's name", "name of person"
     ],
 
-    "father_name": [
+    "father name": [
         "father name", "father's name", "s/o", "son of", "name of father"
     ],
 
