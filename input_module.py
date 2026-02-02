@@ -4,8 +4,6 @@ import requests
 from pdf2image import convert_from_bytes
 from io import BytesIO
 from dotenv import load_dotenv
-# import arabic_reshaper
-# from bidi.algorithm import get_display
 
 load_dotenv()
 

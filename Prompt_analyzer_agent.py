@@ -118,23 +118,23 @@ OCR TEXT:
 """
 FIELD_SYNONYMS = {
     "name": [
-        "name", "full name", "holder name", "person's name", "name of person"
+        "name", "full name", "holder name", "person's name"
     ],
 
     "father name": [
         "father name", "father's name", "s/o", "son of", "name of father"
     ],
 
-    "mother_name": [
+    "mother name": [
         "mother name", "mother's name", "d/o", "daughter of", "name of mother"
     ],
 
-    "id_number": [
+    "id number": [
         "cnic", "nic", "national id", "identity number",
         "id no", "id number", "identity no"
     ],
 
-    "date_of_birth": [
+    "date of birth": [
         "dob", "date of birth", "birth date"
     ],
 
@@ -159,7 +159,7 @@ FIELD_SYNONYMS = {
     ],
 
     "address": [
-        "address", "current address", "permanent address", "residence"
+        "address", "current address", "permanent address", "residence", "Maojooda Pata", "pata"
     ]
 }
 
@@ -222,14 +222,12 @@ OCR TEXT:
 """
 def structure_with_gpt(ocr_text: str, user_prompt: str | None):
 
-    # Requirement 2 — default extraction
     if not user_prompt or not user_prompt.strip():
         final_prompt = DEFAULT_OCR_STRUCTURING_PROMPT.replace("{text}", ocr_text)
 
     else:
         intent = extract_requested_fields(user_prompt)
 
-        # Requirement 3 — invalid prompt
         if intent == "invalid":
             return {
                 "success": False,
@@ -237,7 +235,6 @@ def structure_with_gpt(ocr_text: str, user_prompt: str | None):
                 "message": "Invalid prompt. This prompt is not relevant for OCR extraction."
             }
 
-        # 🔥 IMPORTANT FIX — normalize fields
         if intent is not None:
             intent = normalize_fields(intent)
 
