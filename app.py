@@ -9,7 +9,8 @@ from input_module import ocr_image_bytes, ocr_pdf_bytes
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from database_config.users_table import User
-from database_config.api_usage_table import APISummary, to_pkt, pkt_now
+from database_config.api_usage_table import APISummary, to_pkt
+from auth_api_key import verify_api_key
 from database_config.main import get_db
 from security import hash_password
 from schema.login_schema import RegisterSchema
@@ -60,7 +61,8 @@ async def health_check():
 
 @app.post("/extract-images")
 async def extract_images(
-    files: List[UploadFile] = File(..., description="Upload multiple image files:")
+    files: List[UploadFile] = File(..., description="Upload multiple image files:"),
+    _: APISummary = Depends(verify_api_key)
 ):
     for file in files:
 
@@ -99,7 +101,8 @@ async def extract_images(
 
 @app.post("/extract-pdfs")
 async def extract_pdfs(
-    files: List[UploadFile] = File(..., description="Upload multiple PDF files:")
+    files: List[UploadFile] = File(..., description="Upload multiple PDF files:"),
+    _: APISummary = Depends(verify_api_key)
 ):
     combined_texts = []
 
@@ -144,7 +147,8 @@ async def extract_pdfs(
 @app.post("/ocr/structure")
 async def structure_text(
     files: List[UploadFile] = File(..., description="Upload images or PDFs for text extraction:"),
-    structuring_prompt: str = Form(None, description="Write what you want to extract text from the images and PDFs files:")
+    structuring_prompt: str = Form(None, description="Write what you want to extract text from the images and PDFs files:"),
+    _: APISummary = Depends(verify_api_key)
 ):
     combined_texts = []
     processed_types = set()
@@ -224,17 +228,14 @@ from sqlalchemy.orm import Session
 @app.post("/auth/register", status_code=201)
 def register(user: RegisterSchema, db: Session = Depends(get_db)):
 
-    # 1️⃣ Check existing user
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # 2️⃣ Get free plan
     free_plan = db.query(Plan).filter(Plan.name == "free").first()
     if not free_plan:
         raise HTTPException(status_code=500, detail="Free plan not configured")
 
-    # 3️⃣ Create user
     new_user = User(
         full_name=user.full_name,
         email=user.email,
@@ -246,7 +247,6 @@ def register(user: RegisterSchema, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    # 4️⃣ Generate API key
     free_api_key = secrets.token_urlsafe(32)
 
     api_key = APISummary(
@@ -261,7 +261,6 @@ def register(user: RegisterSchema, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(api_key)
 
-    # 5️⃣ Set API expiry (30 days from issue date)
     api_key.api_end_date = api_key.created_at + timedelta(days=30)
     db.commit()
 
@@ -315,10 +314,17 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
         "user": {
             "user_id": user.user_id
         },
-        "api_usage": {
-            "monthly_limit": api_key.monthly_limit,
-            "used_hits": api_key.used_hits,
-            "remaining_hits": api_key.remaining_hits,
-            "allow_hits": api_key.allow_hits()     
-        }
-    }
+    "api_usage": {
+                "monthly_limit": api_key.monthly_limit,
+                "used_hits": api_key.used_hits,
+                "remaining_hits": api_key.remaining_hits,
+                "allow_hits": api_key.allow_hits(),
+                "api_issue_date": to_pkt(api_key.created_at),
+                "api_end_date": to_pkt(api_key.api_end_date)
+                }
+
+            }
+    
+    
+    
+    

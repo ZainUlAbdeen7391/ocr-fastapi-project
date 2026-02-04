@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from database_config.api_usage_table import APIKey
+from database_config.api_usage_table import APISummary
 from database_config.main import get_db
-from routers.auth_api_key import get_current_user
+from routers.auth_token import get_current_user
 import secrets
 from schema.api_key import APIKeyResponseSchema
 
@@ -15,7 +15,7 @@ def create_api_key(
 ):
     key = secrets.token_urlsafe(32)
 
-    api_key_obj = APIKey(
+    api_key_obj = APISummary(
         user_id=current_user.id,
         api_key=key
     )
