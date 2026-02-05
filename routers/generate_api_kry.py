@@ -18,6 +18,7 @@ def create_api_key(
     api_key_obj = APISummary(
         user_id=current_user.id,
         api_key=key
+    
     )
     db.add(api_key_obj)
     db.commit()

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from database_config.users_table import User
 from database_config.api_usage_table import APISummary, to_pkt
-from auth_api_key import verify_api_key
+from auth_api_key import verify_api_key_only, verify_structure_access
 from database_config.main import get_db
 from security import hash_password
 from schema.login_schema import RegisterSchema
@@ -62,7 +62,7 @@ async def health_check():
 @app.post("/extract-images")
 async def extract_images(
     files: List[UploadFile] = File(..., description="Upload multiple image files:"),
-    _: APISummary = Depends(verify_api_key)
+    _: APISummary = Depends(verify_api_key_only)
 ):
     for file in files:
 
@@ -102,7 +102,7 @@ async def extract_images(
 @app.post("/extract-pdfs")
 async def extract_pdfs(
     files: List[UploadFile] = File(..., description="Upload multiple PDF files:"),
-    _: APISummary = Depends(verify_api_key)
+    _:APISummary = Depends(verify_api_key_only)
 ):
     combined_texts = []
 
@@ -148,7 +148,7 @@ async def extract_pdfs(
 async def structure_text(
     files: List[UploadFile] = File(..., description="Upload images or PDFs for text extraction:"),
     structuring_prompt: str = Form(None, description="Write what you want to extract text from the images and PDFs files:"),
-    _: APISummary = Depends(verify_api_key)
+    _: APISummary = Depends(verify_structure_access)
 ):
     combined_texts = []
     processed_types = set()
@@ -219,6 +219,7 @@ async def structure_text(
     
 
 # This endpoint is using for register the new user and generate a new api key
+# by default it will gives you 5 api hits free with structuring data
 
 from datetime import date, timedelta
 import secrets
@@ -306,6 +307,7 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
     token = create_access_token({"user_id": user.user_id})
 
     return {
+        
         "success": True,
         "message": "You are Logged in successful",
         "access_token": token,
