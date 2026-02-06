@@ -7,5 +7,6 @@ requests
 python-multipart
 sqlalchemy
 pymysql
+passlib
 
 
