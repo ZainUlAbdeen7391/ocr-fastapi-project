@@ -11,6 +11,8 @@ passlib
 pydantic[email]
 jose
 python-jose[cryptography]
+argon2-cffi
+
 
 
 
