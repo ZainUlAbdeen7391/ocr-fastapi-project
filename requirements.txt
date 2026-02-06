@@ -8,5 +8,7 @@ python-multipart
 sqlalchemy
 pymysql
 passlib
+pydantic[email]
+
 
 
