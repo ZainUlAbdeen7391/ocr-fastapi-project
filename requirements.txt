@@ -5,5 +5,7 @@ pdf2image
 python-dotenv
 requests
 python-multipart
+sqlalchemy
+pymysql
 
 

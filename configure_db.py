@@ -1,16 +1,17 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
 
-DB_USER = "root"
-DB_PASSWORD = ""
-DB_HOST = "localhost"
-DB_PORT = "3306"
-DB_NAME = "users"
+load_dotenv()
 
-DATABASE_URL = (
-    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME = os.getenv("DB_NAME")
+
+DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 engine = create_engine(
     DATABASE_URL,
@@ -25,11 +26,14 @@ SessionLocal = sessionmaker(
 
 Base = declarative_base()
 
+# Test connection
 try:
     connection = engine.connect()
     print("✅ Database connected successfully")
     connection.close()
 except Exception as e:
     print("❌ Database error:", e)
+
+
 
 
