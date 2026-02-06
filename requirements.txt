@@ -10,6 +10,7 @@ pymysql
 passlib
 pydantic[email]
 jose
+python-jose[cryptography]
 
 
 
