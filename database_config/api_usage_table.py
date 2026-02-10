@@ -14,22 +14,15 @@ class APISummary(Base):
     __tablename__ = "api_keys"
 
     id = Column(Integer, primary_key=True, index=True)
-
     user_id = Column(Integer, ForeignKey("credentials.user_id"), nullable=False)
-
     api_key = Column(String(255), unique=True, nullable=False)
-
     monthly_limit = Column(Integer, nullable=False, default=2)
     used_hits = Column(Integer, nullable=False, default=0)
-
     last_reset = Column(Date, nullable=False, default=date.today)
-
     is_active = Column(Boolean, default=True)
-
     created_at = Column(DateTime, nullable=False, default=pkt_now)
-
     api_end_date = Column(DateTime, default=lambda: pkt_now() + timedelta(days=30))
-
+    # Relationship 
     user = relationship("User", back_populates="api_keys")
 
     @property

@@ -26,7 +26,6 @@ SessionLocal = sessionmaker(
 
 Base = declarative_base()
 
-# Test connection
 try:
     connection = engine.connect()
     print("✅ Database connected successfully")

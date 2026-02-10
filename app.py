@@ -58,14 +58,14 @@ async def health_check():
     return {"status": "healthy, PLease visit documentation:"}
 
 # For Images without GPT Model 
-
 @app.post("/extract-images")
 async def extract_images(
-    files: List[UploadFile] = File(..., description="Upload multiple image files:"),
-    _: APISummary = Depends(verify_api_key_only)
+    files: List[UploadFile] = File(...),
+    api_data = Depends(verify_api_key_only)
 ):
-    for file in files:
+    api = api_data["api"]
 
+    for file in files:
         validation = validate_ocr_file(file.filename)
 
         if validation["type"] != "image":
@@ -73,129 +73,83 @@ async def extract_images(
                 "success": False,
                 "valid": False,
                 "type": validation.get("type"),
-                "message": "Unsupported file format",
-                "allowed_image_formats": validation.get("allowed_image_formats", [])
+                "message": "Unsupported file format"
             })
 
-        try:
-            image_bytes = await file.read()
-            raw_text = await run_in_threadpool(ocr_image_bytes, image_bytes)
-            cleaned_text = clean_text(raw_text, keep_newlines=True)
-            return JSONResponse(content={
-                "success": True,
-                "valid": True,
-                "type": "image",
-                "message": "OCR extracted successfully",
-                "text": cleaned_text
-            })
+        image_bytes = await file.read()
+        raw_text = await run_in_threadpool(ocr_image_bytes, image_bytes)
+        cleaned_text = clean_text(raw_text, keep_newlines=True)
 
-        except Exception as e:
-            return JSONResponse(content={
-                "success": False,
-                "valid": False,
-                "type": "image",
-                "message": f"OCR failed: {str(e)}"
-            })
+        return JSONResponse(content={
+            "success": True,
+            "valid": True,
+            "type": "image",
+            "message": "OCR extracted successfully",
+            "text": cleaned_text,
+            "remaining_hits": api.remaining_hits
+        })
 
 # For PDF without GPT Model 
-
 @app.post("/extract-pdfs")
 async def extract_pdfs(
-    files: List[UploadFile] = File(..., description="Upload multiple PDF files:"),
-    _:APISummary = Depends(verify_api_key_only)
+    files: List[UploadFile] = File(...),
+    api_data = Depends(verify_api_key_only)
 ):
+    api = api_data["api"]
     combined_texts = []
 
     for file in files:
-
         validation = validate_ocr_file(file.filename)
 
-        if validation.get("type") != "pdf":
+        if validation["type"] != "pdf":
             return JSONResponse(content={
                 "success": False,
                 "valid": False,
                 "type": validation.get("type"),
-                "message": "Unsupported file format",
-                "allowed_document_formats": validation.get("allowed_document_formats", [])
+                "message": "Unsupported file format"
             })
 
-        try:
-            pdf_bytes = await file.read()
-            
-            raw_text = await run_in_threadpool(ocr_pdf_bytes, pdf_bytes)
-            cleaned_text = clean_text(raw_text, keep_newlines=True)
-            combined_texts.append(cleaned_text)
-
-        except Exception as e:
-            return JSONResponse(content={
-                "success": False,
-                "valid": False,
-                "type": "pdf",
-                "message": f"OCR failed: {str(e)}"
-            })
+        pdf_bytes = await file.read()
+        raw_text = await run_in_threadpool(ocr_pdf_bytes, pdf_bytes)
+        cleaned_text = clean_text(raw_text, keep_newlines=True)
+        combined_texts.append(cleaned_text)
 
     return JSONResponse(content={
         "success": True,
         "valid": True,
         "type": "pdf",
         "message": "OCR extracted successfully",
-        "data": "\n\n".join(combined_texts)
+        "data": "\n\n".join(combined_texts),
+        "remaining_hits": api.remaining_hits
     })
-    
-# This Endpoint is using for text extraction with structing data
 
+# This Endpoint is using for text extraction with structing data
 @app.post("/ocr/structure")
 async def structure_text(
-    files: List[UploadFile] = File(..., description="Upload images or PDFs for text extraction:"),
-    structuring_prompt: str = Form(None, description="Write what you want to extract text from the images and PDFs files:"),
-    _: APISummary = Depends(verify_structure_access)
+    files: List[UploadFile] = File(...),
+    structuring_prompt: str = Form(None),
+    api_data = Depends(verify_structure_access)
 ):
+    api = api_data["api"]
+
     combined_texts = []
     processed_types = set()
 
     for file in files:
         validation = validate_ocr_file(file.filename)
-
-        if not validation["valid"]:
-            return JSONResponse(content={
-                "success": False,
-                "valid": False,
-                "type": validation.get("type"),
-                "message": "Unsupported file format",
-                "allowed_image_formats": validation.get("allowed_image_formats", []),
-                "allowed_document_formats": validation.get("allowed_document_formats", [])
-            })
-
         processed_types.add(validation.get("type"))
 
-        try:
-            file_bytes = await file.read()
+        file_bytes = await file.read()
 
-            if validation["type"] == "image":
-                raw_text = await run_in_threadpool(ocr_image_bytes, file_bytes)
-            elif validation["type"] == "pdf":
-                raw_text = await run_in_threadpool(ocr_pdf_bytes, file_bytes)
+        if validation["type"] == "image":
+            raw_text = await run_in_threadpool(ocr_image_bytes, file_bytes)
+        else:
+            raw_text = await run_in_threadpool(ocr_pdf_bytes, file_bytes)
 
-            cleaned_text = clean_text(raw_text, keep_newlines=True)
-            combined_texts.append(cleaned_text)
+        cleaned_text = clean_text(raw_text, keep_newlines=True)
+        combined_texts.append(cleaned_text)
 
-        except Exception as e:
-            return JSONResponse(content={
-                "success": False,
-                "valid": False,
-                "type": validation.get("type"),
-                "message": f"OCR failed: {str(e)}"
-            })
-
-    full_text = "\n\n".join(combined_texts).strip()
-
-    if not full_text:
-        return JSONResponse(content={
-            "success": False,
-            "valid": False,
-            "type": ", ".join(processed_types) if processed_types else None,
-            "message": "No valid OCR text extracted"
-        })
+    full_text = "\n\n".join(combined_texts)
 
     gpt_response = await run_in_threadpool(
         structure_with_gpt,
@@ -203,20 +157,14 @@ async def structure_text(
         structuring_prompt
     )
 
-    if not gpt_response.get("success"):
-        return JSONResponse(content=gpt_response)
-
     return JSONResponse(content={
         "success": True,
         "valid": True,
         "type": ", ".join(processed_types),
-        "message": "OCR and structuring completed successfully",
-        "data": {
-            "raw_text": full_text,
-            "structured_json": gpt_response["data"]
-        }
+        "data": gpt_response["data"],
+        "remaining_hits": api.remaining_hits
     })
-    
+
 
 # This endpoint is using for register the new user and generate a new api key
 # by default it will gives you 5 api hits free with structuring data
