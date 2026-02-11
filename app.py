@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, Depends
+from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List
 import re
@@ -12,18 +12,16 @@ from database_config.users_table import User
 from database_config.api_usage_table import APISummary, to_pkt
 from auth_api_key import verify_api_key_only, verify_structure_access
 from database_config.main import get_db
-from security import hash_password
-from schema.login_schema import RegisterSchema
-from fastapi import HTTPException
-from datetime import date  
+from security import hash_password, verify_password
+from schema.login_schema import RegisterSchema, LoginSchema
+from datetime import date, timedelta
 from database_config.plan_table import Plan
-from fastapi import HTTPException
-from security import verify_password
 from jwt_utils import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-from schema.login_schema import LoginSchema
-from sqlalchemy import func
 import secrets
+
 load_dotenv()
+
+# ---------------- Utility Functions ---------------- #
 
 def clean_text(text: str, keep_newlines: bool = False) -> str:
     if not text:
@@ -33,17 +31,15 @@ def clean_text(text: str, keep_newlines: bool = False) -> str:
         text = text.replace("\n", " ")
     text = re.sub(r"\s+", " ", text)
     text = text.replace("<", "").replace(">", "")
-
     return text.strip()
 
-# FastAPI
+# ---------------- FastAPI ---------------- #
 
 app = FastAPI(
     title="Devminds OCR 🚀",
     description="Advanced Multi-language OCR API (Images & PDFs)",
     version="2.0.0"
 )
-
 
 @app.get("/")
 async def root():
@@ -53,17 +49,21 @@ async def root():
         "formats": [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"],
         "docs": "PDFs Files"
     }
+
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy, PLease visit documentation:"}
+    return {"status": "healthy, please visit documentation."}
 
-# For Images without GPT Model 
+# ---------------- OCR Endpoints ---------------- #
+
 @app.post("/extract-images")
 async def extract_images(
     files: List[UploadFile] = File(...),
     api_data = Depends(verify_api_key_only)
 ):
+
     api = api_data["api"]
+    warning = api_data["warning"]
 
     for file in files:
         validation = validate_ocr_file(file.filename)
@@ -86,16 +86,21 @@ async def extract_images(
             "type": "image",
             "message": "OCR extracted successfully",
             "text": cleaned_text,
-            "remaining_hits": api.remaining_hits
+            "remaining_hits": api.remaining_hits,
+            "warning": warning
         })
 
-# For PDF without GPT Model 
+# PDF Endpoint OCR
+
 @app.post("/extract-pdfs")
 async def extract_pdfs(
     files: List[UploadFile] = File(...),
     api_data = Depends(verify_api_key_only)
 ):
+
     api = api_data["api"]
+    warning = api_data["warning"]
+
     combined_texts = []
 
     for file in files:
@@ -120,25 +125,26 @@ async def extract_pdfs(
         "type": "pdf",
         "message": "OCR extracted successfully",
         "data": "\n\n".join(combined_texts),
-        "remaining_hits": api.remaining_hits
+        "remaining_hits": api.remaining_hits,
+        "warning": warning
     })
 
-# This Endpoint is using for text extraction with structing data
+# Structured Output OCR
+
 @app.post("/ocr/structure")
 async def structure_text(
     files: List[UploadFile] = File(...),
     structuring_prompt: str = Form(None),
-    api_data = Depends(verify_structure_access)
-):
-    api = api_data["api"]
+    api: APISummary = Depends(verify_structure_access)
 
+):
+    
     combined_texts = []
     processed_types = set()
 
     for file in files:
         validation = validate_ocr_file(file.filename)
         processed_types.add(validation.get("type"))
-
         file_bytes = await file.read()
 
         if validation["type"] == "image":
@@ -149,7 +155,7 @@ async def structure_text(
         cleaned_text = clean_text(raw_text, keep_newlines=True)
         combined_texts.append(cleaned_text)
 
-    full_text = "\n\n".join(combined_texts)
+    full_text = "\n\n".join(combined_texts).strip()
 
     gpt_response = await run_in_threadpool(
         structure_with_gpt,
@@ -161,22 +167,15 @@ async def structure_text(
         "success": True,
         "valid": True,
         "type": ", ".join(processed_types),
-        "data": gpt_response["data"],
-        "remaining_hits": api.remaining_hits
+        "data": gpt_response.get("data"),
+        "remaining_hits": api.remaining_hits,
+        "warning": api.warning
     })
 
-
-# This endpoint is using for register the new user and generate a new api key
-# by default it will gives you 5 api hits free with structuring data
-
-from datetime import date, timedelta
-import secrets
-from fastapi import Depends, HTTPException
-from sqlalchemy.orm import Session
+# ---------------- Auth Endpoints ---------------- #
 
 @app.post("/auth/register", status_code=201)
 def register(user: RegisterSchema, db: Session = Depends(get_db)):
-
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -201,6 +200,7 @@ def register(user: RegisterSchema, db: Session = Depends(get_db)):
     api_key = APISummary(
         user_id=new_user.user_id,
         api_key=free_api_key,
+        monthly_hit_limit=free_plan.monthly_hit_limit,  # ✅ Set dynamically from plan
         used_hits=0,
         last_reset=date.today(),
         is_active=True
@@ -213,7 +213,6 @@ def register(user: RegisterSchema, db: Session = Depends(get_db)):
     api_key.api_end_date = api_key.created_at + timedelta(days=30)
     db.commit()
 
-    # 6️⃣ Response
     return {
         "success": True,
         "message": "User registered successfully",
@@ -224,29 +223,22 @@ def register(user: RegisterSchema, db: Session = Depends(get_db)):
         "api_end_date": to_pkt(api_key.api_end_date)
     }
 
-
-# This endpoint is using for login to varify the user is register or not...
-
 @app.post("/auth/login")
 def login(data: LoginSchema, db: Session = Depends(get_db)):
-
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     api_key = db.query(APISummary).filter(
         APISummary.user_id == user.user_id,
-       APISummary.is_active == True
+        APISummary.is_active == True
     ).first()
 
     if not api_key:
         raise HTTPException(status_code=403, detail="No active API key found")
 
     today = date.today()
-    if (
-        api_key.last_reset.year != today.year
-        or api_key.last_reset.month != today.month
-    ):
+    if api_key.last_reset.year != today.year or api_key.last_reset.month != today.month:
         api_key.used_hits = 0
         api_key.last_reset = today
         db.commit()
@@ -255,26 +247,19 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
     token = create_access_token({"user_id": user.user_id})
 
     return {
-        
         "success": True,
-        "message": "You are Logged in successful",
+        "message": "You are logged in successfully",
         "access_token": token,
         "token_type": "bearer",
         "expires_in_minutes": ACCESS_TOKEN_EXPIRE_MINUTES,
-        "user": {
-            "user_id": user.user_id
-        },
-    "api_usage": {
-                "monthly_limit": api_key.monthly_limit,
-                "used_hits": api_key.used_hits,
-                "remaining_hits": api_key.remaining_hits,
-                "allow_hits": api_key.allow_hits(),
-                "api_issue_date": to_pkt(api_key.created_at),
-                "api_end_date": to_pkt(api_key.api_end_date)
-                }
-
-            }
-    
-    
-    
-    
+        "user": {"user_id": user.user_id},
+        "api_usage": {
+            "monthly_limit": api_key.monthly_hit_limit,
+            "used_hits": api_key.used_hits,
+            "remaining_hits": api_key.remaining_hits,
+            "allow_hits": api_key.allow_hits(),
+            "warning": api_key.warning,
+            "api_issue_date": to_pkt(api_key.created_at),
+            "api_end_date": to_pkt(api_key.api_end_date)
+        }
+    }

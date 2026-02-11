@@ -5,7 +5,6 @@ from database_config.main import get_db
 from database_config.api_usage_table import APISummary
 from database_config.users_table import User
 
-
 def verify_api_key_only(
     x_api_key: str = Header(..., description="Enter your generated API"),
     db: Session = Depends(get_db)
@@ -34,16 +33,15 @@ def verify_api_key_only(
             "message": "API key expired"
         })
 
-    # Monthly reset
+    # ---------------- MONTHLY RESET ---------------- #
     today = date.today()
     if api.last_reset.month != today.month or api.last_reset.year != today.year:
-        db.query(APISummary).filter(APISummary.id == api.id).update({
-            APISummary.used_hits: 0,
-            APISummary.last_reset: today
-        })
+        api.used_hits = 0
+        api.last_reset = today
         db.commit()
         db.refresh(api)
 
+    # ---------------- QUOTA CHECK ---------------- #
     if not api.allow_hits():
         raise HTTPException(status_code=429, detail={
             "success": False,
@@ -51,33 +49,42 @@ def verify_api_key_only(
             "message": "Monthly quota exceeded"
         })
 
-    db.query(APISummary).filter(APISummary.id == api.id)\
-        .update({APISummary.used_hits: APISummary.used_hits + 1})
-
+    # ---------------- INCREMENT HITS ---------------- #
+    api.used_hits += 1
     db.commit()
     db.refresh(api)
-
-    remaining = api.monthly_limit - api.used_hits
-    percent = (api.used_hits / api.monthly_limit) * 100
+    remaining = api.remaining_hits
 
     warning = None
-    if percent >= 90:
-        warning = f"{remaining} hits remaining"
+
+    if remaining == 3:
+        warning = "You’re nearing your monthly limit — 3 requests remaining."
+
+    elif remaining == 2:
+        warning = "Just a heads-up: 2 requests left for this month."
+
+    elif remaining == 1:
+        warning = (
+            "This is your last request for this month. "
+            "Consider upgrading to Pro for uninterrupted access."
+        )
+
+    elif remaining <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail="You’ve reached your monthly quota. Kindly upgrade to Pro."
+        )
 
     return {
-        "success": True,
-        "valid": True,
-        "warning": warning,
-        "remaining_hits": remaining,
-        "api": api
+        "api": api,
+        "warning": warning
     }
 
 
 def verify_structure_access(
-    x_api_key: str = Header(..., description="Enter generated key if it allow structure data"),
+    x_api_key: str = Header(..., description="Enter generated key if it allows structured data"),
     db: Session = Depends(get_db)
 ):
-
     api = (
         db.query(APISummary)
         .join(User, User.user_id == APISummary.user_id)
@@ -102,17 +109,15 @@ def verify_structure_access(
             "message": "API key expired"
         })
 
-    # Monthly reset
+    # ---------------- MONTHLY RESET ---------------- #
     today = date.today()
     if api.last_reset.month != today.month or api.last_reset.year != today.year:
-        db.query(APISummary).filter(APISummary.id == api.id).update({
-            APISummary.used_hits: 0,
-            APISummary.last_reset: today
-        })
+        api.used_hits = 0
+        api.last_reset = today
         db.commit()
         db.refresh(api)
 
-    # Quota check (IMPORTANT)
+    # ---------------- QUOTA CHECK ---------------- #
     if not api.allow_hits():
         raise HTTPException(status_code=429, detail={
             "success": False,
@@ -120,7 +125,7 @@ def verify_structure_access(
             "message": "Monthly quota exceeded"
         })
 
-    # Plan permission check
+    # ---------------- PLAN PERMISSION ---------------- #
     if not api.user.plan.allow_structure:
         raise HTTPException(status_code=405, detail={
             "success": False,
