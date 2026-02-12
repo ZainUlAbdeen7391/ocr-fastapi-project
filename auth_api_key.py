@@ -58,16 +58,19 @@ def verify_api_key_only(
     warning = None
 
     if remaining == 3:
-        warning = "You’re nearing your monthly limit — 3 requests remaining."
+        warning = ("You are approaching your allocated monthly request quota."
+                   "You currently have 3 remaining requests available for this billing cycle.")
 
     elif remaining == 2:
-        warning = "Just a heads-up: 2 requests left for this month."
+        warning = ("Your account has nearly reached its monthly request limit."
+                   "Only 2 requests remain before the quota resets.")
 
     elif remaining == 1:
         warning = (
             "This is your last request for this month. "
             "Consider upgrading to Pro for uninterrupted access."
         )
+        
 
     elif remaining <= 0:
         raise HTTPException(
@@ -139,3 +142,6 @@ def verify_structure_access(
         "message": "Access granted",
         "api": api
     }
+
+
+
