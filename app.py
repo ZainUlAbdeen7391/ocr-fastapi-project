@@ -200,11 +200,11 @@ def register(user: RegisterSchema, db: Session = Depends(get_db)):
     api_key = APISummary(
         user_id=new_user.user_id,
         api_key=free_api_key,
-        monthly_hit_limit=free_plan.monthly_hit_limit,  
         used_hits=0,
         last_reset=date.today(),
         is_active=True
     )
+
 
     db.add(api_key)
     db.commit()
@@ -254,12 +254,13 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
         "expires_in_minutes": ACCESS_TOKEN_EXPIRE_MINUTES,
         "user": {"user_id": user.user_id},
         "api_usage": {
-            "monthly_limit": api_key.monthly_hit_limit,
+            "monthly_limit": api_key.user.plan.monthly_hit_limit,
             "used_hits": api_key.used_hits,
             "remaining_hits": api_key.remaining_hits,
             "allow_hits": api_key.allow_hits(),
             "warning": api_key.warning,
             "api_issue_date": to_pkt(api_key.created_at),
             "api_end_date": to_pkt(api_key.api_end_date)
-        }
+}
+
     }

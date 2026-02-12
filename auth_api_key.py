@@ -72,7 +72,7 @@ def verify_api_key_only(
         )
         
 
-    elif remaining <= 0:
+    elif remaining == 0:
         raise HTTPException(
             status_code=429,
             detail="You’ve reached your monthly quota. Kindly upgrade to Pro."

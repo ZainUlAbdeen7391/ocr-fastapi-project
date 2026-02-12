@@ -15,7 +15,6 @@ class APISummary(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("credentials.user_id"), nullable=False)
     api_key = Column(String(255), unique=True, nullable=False)
-    monthly_hit_limit = Column(Integer, nullable=False)  # updated column name
     used_hits = Column(Integer, nullable=False)
     last_reset = Column(Date, nullable=False, default=date.today)
     is_active = Column(Boolean, default=True)
@@ -27,7 +26,8 @@ class APISummary(Base):
 
     @property
     def remaining_hits(self):
-        return max(self.monthly_hit_limit - self.used_hits, 0)
+        return max(self.user.plan.monthly_hit_limit - self.used_hits, 0)
+
 
     @property
     def warning(self):
