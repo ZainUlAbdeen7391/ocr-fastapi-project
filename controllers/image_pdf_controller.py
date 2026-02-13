@@ -16,18 +16,6 @@ def _get_api_key():
         raise RuntimeError("GOOGLE_VISION_API_KEY not set")
     return api_key
 
-
-# def fix_rtl_text(text: str) -> str:
-
-#     if not text:
-#         return ""
-
-#     reshaped = arabic_reshaper.reshape(text)
-#     return get_display(reshaped)
-
-
-# IMAGE OCR 
-
 def ocr_image_bytes(image_bytes: bytes) -> str:
 
     api_key = _get_api_key()

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, text
 from sqlalchemy.orm import relationship
-from configure_db import Base
+from database_connections import Base
 
 
 class User(Base):
@@ -14,7 +14,6 @@ class User(Base):
 
     plan_id = Column(Integer, ForeignKey("plans.id"), nullable=False)
 
-    # DATABASE controls timestamp
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
 
     # Relationships
@@ -24,3 +23,23 @@ class User(Base):
         back_populates="user",
         cascade="all, delete"
     )
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

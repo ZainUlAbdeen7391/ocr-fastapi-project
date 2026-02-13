@@ -1,37 +1,25 @@
 from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List
-import re
+from text_cleaner.clearner import clean_text
 from starlette.concurrency import run_in_threadpool
-from Prompt_analyzer_agent import structure_with_gpt
-from validation_file import validate_ocr_file
-from input_module import ocr_image_bytes, ocr_pdf_bytes
+from middleware.Prompt_analyzer_agent import structure_with_gpt
+from middleware.validation_file import validate_ocr_file
+from controllers.image_pdf_controller import ocr_image_bytes, ocr_pdf_bytes
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from database_config.users_table import User
-from database_config.api_usage_table import APISummary, to_pkt
-from auth_api_key import verify_api_key_only, verify_structure_access
-from database_config.main import get_db
-from security import hash_password, verify_password
+from tables.users_table import User
+from tables.api_usage_table import APISummary, to_pkt
+from middleware.auth_api_key import verify_api_key_only, verify_structure_access
+from tables.main import get_db
+from middleware.security import hash_password, verify_password
 from schema.login_schema import RegisterSchema, LoginSchema
 from datetime import date, timedelta
-from database_config.plan_table import Plan
+from tables.plan_table import Plan
 from jwt_utils import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 import secrets
 
 load_dotenv()
-
-# ---------------- Utility Functions ---------------- #
-
-def clean_text(text: str, keep_newlines: bool = False) -> str:
-    if not text:
-        return ""
-    text = text.replace("\t", " ").replace("\r", " ")
-    if not keep_newlines:
-        text = text.replace("\n", " ")
-    text = re.sub(r"\s+", " ", text)
-    text = text.replace("<", "").replace(">", "")
-    return text.strip()
 
 # ---------------- FastAPI ---------------- #
 
@@ -50,15 +38,11 @@ async def root():
         "docs": "PDFs Files"
     }
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy, please visit documentation."}
-
 # ---------------- OCR Endpoints ---------------- #
 
 @app.post("/extract-images")
 async def extract_images(
-    files: List[UploadFile] = File(...),
+    files: List[UploadFile] = File(..., description="Upload image files for OCR processing"),
     api_data = Depends(verify_api_key_only)
 ):
 
@@ -94,7 +78,7 @@ async def extract_images(
 
 @app.post("/extract-pdfs")
 async def extract_pdfs(
-    files: List[UploadFile] = File(...),
+    files: List[UploadFile] = File(..., description="Upload PDF files for OCR processing"),
     api_data = Depends(verify_api_key_only)
 ):
 
@@ -133,7 +117,7 @@ async def extract_pdfs(
 
 @app.post("/ocr/structure")
 async def structure_text(
-    files: List[UploadFile] = File(...),
+    files: List[UploadFile] = File(..., description="Upload image or PDF files for structured OCR processing"),
     structuring_prompt: str = Form(None),
     api: APISummary = Depends(verify_structure_access)
 
@@ -175,7 +159,7 @@ async def structure_text(
 # ---------------- Auth Endpoints ---------------- #
 
 @app.post("/auth/register", status_code=201)
-def register(user: RegisterSchema, db: Session = Depends(get_db)):
+async def register(user: RegisterSchema, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -224,7 +208,7 @@ def register(user: RegisterSchema, db: Session = Depends(get_db)):
     }
 
 @app.post("/auth/login")
-def login(data: LoginSchema, db: Session = Depends(get_db)):
+async def login(data: LoginSchema, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -264,3 +248,16 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
 }
 
     }
+
+
+
+
+
+
+
+
+
+
+
+
+

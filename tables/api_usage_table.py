@@ -29,17 +29,17 @@ class APISummary(Base):
         return max(self.user.plan.monthly_hit_limit - self.used_hits, 0)
 
 
-    @property
-    def warning(self):
-        """Progressive warning messages like GPT style."""
-        remaining = self.remaining_hits
-        if remaining == 3:
-            return "⚠️ Only 3 hits remaining"
-        elif remaining == 2:
-            return "⚠️ Only 2 hits remaining"
-        elif remaining == 1:
-            return "⚠️ Last hit remaining"
-        return None
+    # @property
+    # def warning(self):
+    #     """Progressive warning messages like GPT style."""
+    #     remaining = self.remaining_hits
+    #     if remaining == 3:
+    #         return "⚠️ Only 3 hits remaining"
+    #     elif remaining == 2:
+    #         return "⚠️ Only 2 hits remaining"
+    #     elif remaining == 1:
+    #         return "⚠️ Last hit remaining"
+    #     return None
 
     def is_expired(self):
         return pkt_now() > self.api_end_date
