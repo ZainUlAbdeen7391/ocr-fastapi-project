@@ -16,7 +16,7 @@ from middleware.security import hash_password, verify_password
 from schema.login_schema import RegisterSchema, LoginSchema
 from datetime import date, timedelta
 from tables.plan_table import Plan
-from jwt_utils import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from Connections.jwt_utils import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 import secrets
 
 load_dotenv()

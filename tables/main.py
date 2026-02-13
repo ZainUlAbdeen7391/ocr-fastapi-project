@@ -1,4 +1,4 @@
-from configure_db import SessionLocal
+from Connections.database_connections import SessionLocal
 def get_db():
     db = SessionLocal()
     try:

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, DECIMAL, text
 from sqlalchemy.orm import relationship
-from configure_db import Base
+from Connections.database_connections import Base
 from datetime import datetime, timedelta
 
 

@@ -1,9 +1,9 @@
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
-from database_config.main import get_db
-from database_config.api_usage_table import APISummary
-from database_config.users_table import User
+from tables.main import get_db
+from tables.api_usage_table import APISummary
+from tables.users_table import User
 
 def verify_api_key_only(
     x_api_key: str = Header(..., description="Enter your generated API"),
