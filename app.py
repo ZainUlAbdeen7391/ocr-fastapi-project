@@ -151,7 +151,7 @@ async def structure_text(
     api: APISummary = Depends(verify_structure_access)
 
 ):
-    
+
     combined_texts = []
     processed_types = set()
 
@@ -265,17 +265,17 @@ async def login(data: LoginSchema, db: Session = Depends(get_db)):
         "access_token": token,
         "token_type": "bearer",
         "expires_in_minutes": ACCESS_TOKEN_EXPIRE_MINUTES,
-        "user": {"user_id": user.user_id},
+        "user": {"user_id": user.user_id, "email": user.email},
         "api_usage": {
             "monthly_limit": api_key.user.plan.monthly_hit_limit,
             "used_hits": api_key.used_hits,
             "remaining_hits": api_key.remaining_hits,
             "allow_hits": api_key.allow_hits(),
             "warning": api_key.warning,
+            "api_key": api_key.api_key,
             "api_issue_date": to_pkt(api_key.created_at),
             "api_end_date": to_pkt(api_key.api_end_date)
-}
-
+        }
     }
 
 
@@ -292,7 +292,7 @@ async def serve_spa(full_path: str):
     # Skip API routes
     if full_path.startswith(("extract-", "auth/", "ocr/", "health")):
         raise HTTPException(status_code=404)
-    
+
     index_file = os.path.join(static_dir, "index.html")
     if os.path.exists(index_file):
         return FileResponse(index_file)
@@ -303,5 +303,4 @@ async def serve_spa(full_path: str):
 
 
 
-
-
+print("zain")
