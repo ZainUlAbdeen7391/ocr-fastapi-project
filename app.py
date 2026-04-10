@@ -32,14 +32,19 @@ app = FastAPI(
     description="Advanced Multi-language OCR API (Images & PDFs)",
     version="2.0.0"
 )
+
 app.add_middleware(
-    CORSMiddleware)
-    allow_origins=["https://your-frontend-domain.com", "https://ocr-fastapi-project.onrender.com"] 
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5500",  # For local development (Live Server)
+        "http://127.0.0.1:5500",
+        "https://your-frontend-domain.com",  # Your production frontend
+        "https://ocr-fastapi-project.onrender.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
-
-
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
