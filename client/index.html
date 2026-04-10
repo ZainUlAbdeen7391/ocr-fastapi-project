@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Devminds OCR - Advanced Document Processing</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <i class="fas fa-brain"></i>
+            <span>Devminds OCR</span>
+        </div>
+        <div class="nav-links">
+            <button id="authBtn" class="btn btn-outline">
+                <i class="fas fa-user"></i> Login
+            </button>
+            <div id="userMenu" class="user-menu hidden">
+                <span id="userEmail"></span>
+                <button id="logoutBtn" class="btn btn-small">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div class="auth-tabs">
+                <button class="tab-btn active" data-tab="login">Login</button>
+                <button class="tab-btn" data-tab="register">Register</button>
+            </div>
+            
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form">
+                <h2>Welcome Back</h2>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" required placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+                <div id="loginError" class="error-message"></div>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" class="auth-form hidden">
+                <h2>Create Account</h2>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="regName" required placeholder="John Doe">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="regEmail" required placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="regPassword" required placeholder="Min 8 chars, letters, numbers & symbols">
+                    <small class="hint">Password must be at least 8 characters with letters, numbers & special characters</small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">
+                    <i class="fas fa-user-plus"></i> Register
+                </button>
+                <div id="registerError" class="error-message"></div>
+                <div id="registerSuccess" class="success-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1>Extract Text from Any Document</h1>
+            <p class="subtitle">Advanced OCR for Images & PDFs in English, Urdu, and Arabic</p>
+            
+            <!-- API Status Card -->
+            <div id="apiStatus" class="status-card hidden">
+                <div class="status-header">
+                    <i class="fas fa-key"></i>
+                    <span>API Status</span>
+                </div>
+                <div class="status-body">
+                    <div class="quota-info">
+                        <div class="quota-item">
+                            <span class="label">Plan:</span>
+                            <span id="planName" class="value">Free</span>
+                        </div>
+                        <div class="quota-item">
+                            <span class="label">Used:</span>
+                            <span id="usedHits" class="value">0</span>
+                        </div>
+                        <div class="quota-item">
+                            <span class="label">Remaining:</span>
+                            <span id="remainingHits" class="value highlight">50</span>
+                        </div>
+                    </div>
+                    <div class="api-key-display">
+                        <input type="password" id="apiKeyDisplay" readonly value="">
+                        <button id="toggleApiKey" class="btn btn-icon"><i class="fas fa-eye"></i></button>
+                        <button id="copyApiKey" class="btn btn-icon"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <div id="quotaWarning" class="warning-banner hidden"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- OCR Processing Section -->
+        <section class="ocr-section">
+            <div class="upload-container">
+                <div class="upload-tabs">
+                    <button class="upload-tab active" data-type="image">
+                        <i class="fas fa-image"></i> Images
+                    </button>
+                    <button class="upload-tab" data-type="pdf">
+                        <i class="fas fa-file-pdf"></i> PDFs
+                    </button>
+                    <button class="upload-tab" data-type="structured">
+                        <i class="fas fa-table"></i> Structured
+                    </button>
+                </div>
+
+                <!-- Drop Zone -->
+                <div id="dropZone" class="drop-zone">
+                    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp,.pdf" hidden>
+                    <div class="drop-content">
+                        <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                        <p>Drag & drop files here or <span class="browse">browse</span></p>
+                        <small class="formats">Supports: JPG, PNG, BMP, TIFF, WEBP, PDF</small>
+                    </div>
+                </div>
+
+                <!-- File Preview -->
+                <div id="filePreview" class="file-preview hidden">
+                    <h3>Selected Files</h3>
+                    <div id="fileList" class="file-list"></div>
+                </div>
+
+                <!-- Structured Options -->
+                <div id="structuredOptions" class="structured-options hidden">
+                    <div class="form-group">
+                        <label>Extraction Prompt (Optional)</label>
+                        <textarea id="structuringPrompt" placeholder="E.g., 'Extract name, father name, and ID number only' or leave empty for full extraction"></textarea>
+                        <small class="hint">Leave empty to extract all available data automatically</small>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button id="processBtn" class="btn btn-primary btn-large" disabled>
+                        <i class="fas fa-magic"></i> Extract Text
+                    </button>
+                    <button id="clearBtn" class="btn btn-secondary">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+
+                <!-- Progress -->
+                <div id="progressContainer" class="progress-container hidden">
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+                    <span id="progressText">Processing...</span>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="results-section hidden">
+                <div class="results-header">
+                    <h3>Extracted Content</h3>
+                    <div class="result-actions">
+                        <button id="copyBtn" class="btn btn-outline btn-small">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                        <button id="downloadBtn" class="btn btn-outline btn-small">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Tabs for different views -->
+                <div class="result-tabs">
+                    <button class="result-tab active" data-view="text">Text</button>
+                    <button class="result-tab" data-view="json">JSON</button>
+                </div>
+
+                <!-- Text Output -->
+                <div id="textOutput" class="output-container">
+                    <textarea id="extractedText" readonly></textarea>
+                </div>
+
+                <!-- JSON Output -->
+                <div id="jsonOutput" class="output-container hidden">
+                    <pre id="jsonDisplay"></pre>
+                </div>
+
+                <div id="resultMeta" class="result-meta"></div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features">
+            <div class="feature-card">
+                <i class="fas fa-globe"></i>
+                <h3>Multi-Language</h3>
+                <p>English, Urdu & Arabic support with high accuracy</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-file-alt"></i>
+                <h3>Multiple Formats</h3>
+                <p>Images & PDFs with structured data extraction</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-bolt"></i>
+                <h3>Fast Processing</h3>
+                <p>Powered by Google Vision & OpenAI GPT</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

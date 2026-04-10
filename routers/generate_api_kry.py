@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from database_config.api_usage_table import APISummary
-from database_config.main import get_db
-from routers.auth_token import get_current_user
+from tables.api_usage_table import APISummary
+from tables.main import get_db
+from auth_token import get_current_user
 import secrets
 from schema.api_key import APIKeyResponseSchema
 

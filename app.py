@@ -1,5 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware  # ADD THIS
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, FileResponse
 from typing import List
 from text_cleaner.clearner import clean_text
 from starlette.concurrency import run_in_threadpool
@@ -17,7 +19,9 @@ from schema.login_schema import RegisterSchema, LoginSchema
 from datetime import date, timedelta
 from tables.plan_table import Plan
 from Connections.jwt_utils import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from fastapi import Request
 import secrets
+import os 
 
 load_dotenv()
 
@@ -28,6 +32,15 @@ app = FastAPI(
     description="Advanced Multi-language OCR API (Images & PDFs)",
     version="2.0.0"
 )
+app.add_middleware(
+    CORSMiddleware)
+    allow_origins=["https://your-frontend-domain.com", "https://ocr-fastapi-project.onrender.com"] 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+
+
+
 
 @app.get("/")
 async def root():
@@ -39,6 +52,17 @@ async def root():
     }
 
 # ---------------- OCR Endpoints ---------------- #
+
+
+
+
+@app.middleware("http")
+async def limit_upload_size(request: Request, call_next):
+    if request.method == "POST":
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > 10 * 1024 * 1024:  # 10MB
+            return JSONResponse(status_code=413, content={"message": "File too large"})
+    return await call_next(request)
 
 @app.post("/extract-images")
 async def extract_images(
@@ -253,6 +277,21 @@ async def login(data: LoginSchema, db: Session = Depends(get_db)):
 
 
 
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """Serve the frontend SPA for all non-API routes"""
+    # Skip API routes
+    if full_path.startswith(("extract-", "auth/", "ocr/", "health")):
+        raise HTTPException(status_code=404)
+    
+    index_file = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    raise HTTPException(status_code=404)
 
 
 
