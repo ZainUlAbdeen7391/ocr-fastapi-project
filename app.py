@@ -47,14 +47,6 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-async def root():
-    return {
-        "service": "Devminds OCR",
-        "languages": ["English", "Urdu", "Arabic"],
-        "formats": [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"],
-        "docs": "PDFs Files"
-    }
 
 # ---------------- OCR Endpoints ---------------- #
 
@@ -288,22 +280,163 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 # Serve index.html at the root URL
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import HTTPException
+import os
+
+# Get absolute path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+# Check if static folder exists
+print(f"Static directory: {STATIC_DIR}")
+print(f"Exists: {os.path.exists(STATIC_DIR)}")
+if os.path.exists(STATIC_DIR):
+    print(f"Contents: {os.listdir(STATIC_DIR)}")
+
+# Mount static files (CSS, JS)
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Serve frontend at root - THIS MUST BE AFTER ALL API ROUTES
+@app.get("/")
+async def root():
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    
+    # If index.html exists, serve it
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    
+    # Fallback to API info if no frontend
+    return {
+        "service": "Devminds OCR",
+        "status": "API Running",
+        "message": "Frontend not found. Place index.html in static/ folder",
+        "static_dir_exists": os.path.exists(STATIC_DIR),
+        "static_contents": os.listdir(STATIC_DIR) if os.path.exists(STATIC_DIR) else []
+    }
+
+# Catch-all for SPA routes (React/Vue/Angular style)
+# This handles /login, /dashboard, etc. by serving index.html
+
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import HTTPException
+import os
+
+# Get absolute path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+# Check if static folder exists
+print(f"Static directory: {STATIC_DIR}")
+print(f"Exists: {os.path.exists(STATIC_DIR)}")
+if os.path.exists(STATIC_DIR):
+    print(f"Contents: {os.listdir(STATIC_DIR)}")
+
+# Mount static files (CSS, JS)
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Serve frontend at root - THIS MUST BE AFTER ALL API ROUTES
+@app.get("/")
+async def root():
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    
+    # If index.html exists, serve it
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    
+    # Fallback to API info if no frontend
+    return {
+        "service": "Devminds OCR",
+        "status": "API Running",
+        "message": "Frontend not found. Place index.html in static/ folder",
+        "static_dir_exists": os.path.exists(STATIC_DIR),
+        "static_contents": os.listdir(STATIC_DIR) if os.path.exists(STATIC_DIR) else []
+    }
+
+# Catch-all for SPA routes (React/Vue/Angular style)
+# This handles /login, /dashboard, etc. by serving index.html
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import HTTPException
+import os
+
+# Get absolute path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+# Check if static folder exists
+print(f"Static directory: {STATIC_DIR}")
+print(f"Exists: {os.path.exists(STATIC_DIR)}")
+if os.path.exists(STATIC_DIR):
+    print(f"Contents: {os.listdir(STATIC_DIR)}")
+
+# Mount static files (CSS, JS)
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Serve frontend at root - THIS MUST BE AFTER ALL API ROUTES
+@app.get("/")
+async def root():
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    
+    # If index.html exists, serve it
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    
+    # Fallback to API info if no frontend
+    return {
+        "service": "Devminds OCR",
+        "status": "API Running",
+        "message": "Frontend not found. Place index.html in static/ folder",
+        "static_dir_exists": os.path.exists(STATIC_DIR),
+        "static_contents": os.listdir(STATIC_DIR) if os.path.exists(STATIC_DIR) else []
+    }
+
+# Catch-all for SPA routes (React/Vue/Angular style)
+# This handles /login, /dashboard, etc. by serving index.html
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi import HTTPException
+import os
+
+# Get the directory where app.py is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+# Mount static files (CSS, JS, images)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Serve index.html at root URL
 @app.get("/")
 async def serve_frontend():
-    index_path = os.path.join(BASE_DIR, "static", "index.html")
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    
+    # Check if file exists and serve it
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return {"message": "Frontend not found. Please place index.html in static/ folder"}
+    
+    # If not found, return error info
+    return {
+        "error": "Frontend not found",
+        "looking_for": index_path,
+        "static_dir_exists": os.path.exists(STATIC_DIR),
+        "files_in_static": os.listdir(STATIC_DIR) if os.path.exists(STATIC_DIR) else []
+    }
 
-# Catch-all route for SPA (Single Page Application) behavior
+# Handle all other routes (for SPA navigation)
 @app.get("/{path:path}")
 async def catch_all(path: str):
-    # Don't catch API routes
-    if path.startswith(("extract-", "auth/", "ocr/", "docs", "openapi.json")):
+    # Skip API routes
+    if path.startswith(("extract-", "auth/", "ocr/", "docs", "openapi.json", "redoc")):
         raise HTTPException(status_code=404)
     
-    # Try to serve index.html for all other routes
-    index_path = os.path.join(BASE_DIR, "static", "index.html")
+    # Serve index.html for all other routes (React/Vue router style)
+    index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
+    
     raise HTTPException(status_code=404)
