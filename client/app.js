@@ -1,15 +1,15 @@
 // Configuration
-const API_BASE_URL = 'https://ocr-fastapi-project.onrender.com';
-// const API_BASE_URL = 'http://localhost:8000'; // For local testing
+const API_BASE_URL = ''; // Change to your backend URL
 
 // State Management
 const state = {
     currentUser: null,
     apiKey: null,
-    selectedFiles: [],
+    selectedFiles: [], 
     currentTab: 'image',
     isProcessing: false
 };
+
 
 // DOM Elements
 const elements = {
@@ -50,6 +50,9 @@ const elements = {
 document.addEventListener('DOMContentLoaded', () => {
     checkAuthStatus();
     setupEventListeners();
+    
+    // Debug: Log current state
+    console.log('API Base URL:', API_BASE_URL);
 });
 
 // Event Listeners
@@ -134,6 +137,7 @@ async function handleLogin(e) {
     const errorDiv = document.getElementById('loginError');
 
     try {
+        console.log('Attempting login...');
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -141,12 +145,25 @@ async function handleLogin(e) {
         });
 
         const data = await response.json();
+        console.log('Login response:', data); // Debug log
 
         if (response.ok && data.success) {
+            // Store in state
             state.currentUser = data;
-            state.apiKey = data.api_usage; // API key info from login response
+            
+            // Debug: Check if api_key exists
+            if (data.api_usage && data.api_usage.api_key) {
+                console.log('API Key received:', data.api_usage.api_key);
+                state.apiKey = data.api_usage.api_key;
+            } else {
+                console.error('API Key missing in response!');
+                showToast('Warning: API Key not received from server', 'warning');
+            }
+            
+            // Store in localStorage
             localStorage.setItem('ocr_token', data.access_token);
             localStorage.setItem('ocr_user', JSON.stringify(data));
+            
             updateUIForLoggedInUser(data);
             closeAuthModal();
             showToast('Login successful!', 'success');
@@ -175,12 +192,13 @@ async function handleRegister(e) {
         });
 
         const data = await response.json();
+        console.log('Register response:', data);
 
         if (response.ok && data.success) {
-            successDiv.textContent = `Registration successful! Your API Key: ${data.api_key}`;
+            successDiv.innerHTML = `Registration successful! <br>Your API Key: <code>${data.api_key}</code><br><small>Please save this key!</small>`;
             errorDiv.textContent = '';
             showToast('Registration successful! Please login.', 'success');
-            setTimeout(() => switchAuthTab('login'), 2000);
+            setTimeout(() => switchAuthTab('login'), 3000);
         } else {
             errorDiv.textContent = data.detail || 'Registration failed';
             successDiv.textContent = '';
@@ -198,6 +216,7 @@ function handleLogout() {
     localStorage.removeItem('ocr_user');
     updateUIForLoggedOutUser();
     showToast('Logged out successfully', 'info');
+    location.reload(); // Reload to clear everything
 }
 
 function checkAuthStatus() {
@@ -205,24 +224,48 @@ function checkAuthStatus() {
     const user = localStorage.getItem('ocr_user');
     
     if (token && user) {
-        state.currentUser = JSON.parse(user);
-        state.apiKey = state.currentUser.api_usage;
-        updateUIForLoggedInUser(state.currentUser);
+        try {
+            const parsedUser = JSON.parse(user);
+            console.log('Stored user data:', parsedUser);
+            
+            // Check if API key exists in stored data
+            if (!parsedUser.api_usage || !parsedUser.api_usage.api_key) {
+                console.log('No API key in stored data, clearing cache...');
+                localStorage.removeItem('ocr_token');
+                localStorage.removeItem('ocr_user');
+                return; // Force re-login
+            }
+            
+            state.currentUser = parsedUser;
+            state.apiKey = parsedUser.api_usage.api_key;
+            updateUIForLoggedInUser(parsedUser);
+        } catch (e) {
+            console.error('Error parsing stored user:', e);
+            localStorage.clear();
+        }
     }
 }
 
 function updateUIForLoggedInUser(data) {
     elements.authBtn.classList.add('hidden');
     elements.userMenu.classList.remove('hidden');
-    elements.userEmail.textContent = data.user?.email || 'User';
+    elements.userEmail.textContent = data.user?.email || data.user?.user_id || 'User';
     elements.apiStatus.classList.remove('hidden');
     
     // Update quota display
     if (data.api_usage) {
         document.getElementById('planName').textContent = data.api_usage.monthly_limit <= 50 ? 'Free' : 'Pro';
-        document.getElementById('usedHits').textContent = data.api_usage.used_hits;
-        document.getElementById('remainingHits').textContent = data.api_usage.remaining_hits;
-        elements.apiKeyDisplay.value = data.api_usage.api_key || 'N/A';
+        document.getElementById('usedHits').textContent = data.api_usage.used_hits || 0;
+        document.getElementById('remainingHits').textContent = data.api_usage.remaining_hits || 0;
+        
+        // FIX: Ensure api_key is displayed
+        if (data.api_usage.api_key) {
+            elements.apiKeyDisplay.value = data.api_usage.api_key;
+            console.log('API Key displayed:', data.api_usage.api_key);
+        } else {
+            elements.apiKeyDisplay.value = "Error: API Key not found";
+            console.error('API Key missing in data.api_usage');
+        }
         
         // Show warning if low quota
         const warningDiv = document.getElementById('quotaWarning');
@@ -232,6 +275,8 @@ function updateUIForLoggedInUser(data) {
         } else {
             warningDiv.classList.add('hidden');
         }
+    } else {
+        console.error('No api_usage data found');
     }
 }
 
@@ -265,15 +310,12 @@ function handleFileSelect(e) {
 }
 
 function addFiles(files) {
-    const validTypes = ['image/jpeg', 'image/png', 'image/bmp', 'image/tiff', 'image/webp', 'application/pdf'];
+    const validExts = ['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'tif', 'webp', 'pdf'];
     
     files.forEach(file => {
-        // Check by extension for broader compatibility
         const ext = file.name.toLowerCase().split('.').pop();
-        const validExts = ['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'tif', 'webp', 'pdf'];
         
         if (validExts.includes(ext)) {
-            // Prevent duplicates
             if (!state.selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
                 state.selectedFiles.push(file);
             }
@@ -329,22 +371,28 @@ function switchUploadTab(type) {
         tab.classList.toggle('active', tab.dataset.type === type);
     });
     
-    // Show/hide structured options
     if (type === 'structured') {
         elements.structuredOptions.classList.remove('hidden');
     } else {
         elements.structuredOptions.classList.add('hidden');
     }
     
-    // Update accepted file types
     const acceptTypes = type === 'pdf' ? '.pdf' : '.jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp,.pdf';
     elements.fileInput.setAttribute('accept', acceptTypes);
 }
 
 // OCR Processing
 async function processFiles() {
-    if (state.selectedFiles.length === 0 || !state.currentUser) return;
+    if (state.selectedFiles.length === 0 || !state.currentUser) {
+        showToast('Please login and select files first', 'error');
+        return;
+    }
     
+    if (!state.currentUser.api_usage || !state.currentUser.api_usage.api_key) {
+        showToast('API Key not available. Please logout and login again.', 'error');
+        return;
+    }
+
     state.isProcessing = true;
     updateProcessButton();
     elements.progressContainer.classList.remove('hidden');
@@ -357,7 +405,6 @@ async function processFiles() {
     if (state.currentTab === 'pdf') endpoint = '/extract-pdfs';
     if (state.currentTab === 'structured') endpoint = '/ocr/structure';
     
-    // Add structuring prompt if applicable
     if (state.currentTab === 'structured') {
         const prompt = document.getElementById('structuringPrompt').value;
         if (prompt) {
@@ -371,7 +418,7 @@ async function processFiles() {
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             method: 'POST',
             headers: {
-                'X-API-Key': state.currentUser.api_usage?.api_key || ''
+                'X-API-Key': state.currentUser.api_usage.api_key
             },
             body: formData
         });
@@ -379,6 +426,7 @@ async function processFiles() {
         updateProgress(70, 'Processing with OCR...');
         
         const data = await response.json();
+        console.log('OCR Response:', data);
         
         updateProgress(100, 'Complete!');
         
@@ -386,12 +434,14 @@ async function processFiles() {
             displayResults(data);
             showToast('Extraction successful!', 'success');
             
-            // Update quota after processing
+            // Update quota display
             if (data.remaining_hits !== undefined) {
                 document.getElementById('remainingHits').textContent = data.remaining_hits;
-                if (data.warning) {
-                    showToast(data.warning, 'warning');
-                }
+                state.currentUser.api_usage.remaining_hits = data.remaining_hits;
+                localStorage.setItem('ocr_user', JSON.stringify(state.currentUser));
+            }
+            if (data.warning) {
+                showToast(data.warning, 'warning');
             }
         } else {
             throw new Error(data.message || data.detail?.message || 'Processing failed');
@@ -417,7 +467,6 @@ function updateProgress(percent, text) {
 function displayResults(data) {
     elements.resultsSection.classList.remove('hidden');
     
-    // Handle different response formats
     let textContent = '';
     let jsonContent = {};
     
@@ -425,7 +474,6 @@ function displayResults(data) {
         jsonContent = data.data;
         textContent = JSON.stringify(data.data, null, 2);
         
-        // Also try to extract text fields for display
         if (data.data.fields) {
             textContent = Object.entries(data.data.fields)
                 .map(([key, value]) => `${key}: ${value || 'N/A'}`)
@@ -444,7 +492,6 @@ function displayResults(data) {
     elements.extractedText.value = textContent;
     elements.jsonDisplay.textContent = JSON.stringify(jsonContent, null, 2);
     
-    // Meta info
     const metaDiv = document.querySelector('.result-meta');
     metaDiv.innerHTML = `
         <strong>Type:</strong> ${data.type || state.currentTab} | 
@@ -452,7 +499,6 @@ function displayResults(data) {
         <strong>Time:</strong> ${new Date().toLocaleString()}
     `;
     
-    // Scroll to results
     elements.resultsSection.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -541,5 +587,5 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
-// Expose removeFile to global scope for onclick
+// Expose removeFile to global scope
 window.removeFile = removeFile;

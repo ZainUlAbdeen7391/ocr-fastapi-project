@@ -281,26 +281,29 @@ async def login(data: LoginSchema, db: Session = Depends(get_db)):
 
 
 
+# Get the directory where app.py is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+# Serve static files (your HTML, CSS, JS)
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    """Serve the frontend SPA for all non-API routes"""
-    # Skip API routes
-    if full_path.startswith(("extract-", "auth/", "ocr/", "health")):
+# Serve index.html at the root URL
+@app.get("/")
+async def serve_frontend():
+    index_path = os.path.join(BASE_DIR, "static", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "Frontend not found. Please place index.html in static/ folder"}
+
+# Catch-all route for SPA (Single Page Application) behavior
+@app.get("/{path:path}")
+async def catch_all(path: str):
+    # Don't catch API routes
+    if path.startswith(("extract-", "auth/", "ocr/", "docs", "openapi.json")):
         raise HTTPException(status_code=404)
-
-    index_file = os.path.join(static_dir, "index.html")
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
+    
+    # Try to serve index.html for all other routes
+    index_path = os.path.join(BASE_DIR, "static", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     raise HTTPException(status_code=404)
-
-
-
-
-
-
-print("zain")
