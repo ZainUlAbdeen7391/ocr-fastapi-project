@@ -144,7 +144,14 @@ async function handleLogin(e) {
             body: JSON.stringify({ email, password })
         });
 
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            const text = await response.text();
+            console.error('Failed to parse JSON response:', text);
+            throw new Error(`Invalid response from server: ${text || 'Empty response'}`);
+        }
         console.log('Login response:', data); // Debug log
 
         if (response.ok && data.success) {
@@ -191,7 +198,14 @@ async function handleRegister(e) {
             body: JSON.stringify({ full_name, email, password })
         });
 
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            const text = await response.text();
+            console.error('Failed to parse JSON response:', text);
+            throw new Error(`Invalid response from server: ${text || 'Empty response'}`);
+        }
         console.log('Register response:', data);
 
         if (response.ok && data.success) {
@@ -425,7 +439,24 @@ async function processFiles() {
         
         updateProgress(70, 'Processing with OCR...');
         
-        const data = await response.json();
+        let data;
+        const contentType = response.headers.get("content-type");
+        
+        if (contentType && contentType.includes("application/json")) {
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                const text = await response.text();
+                console.error('Failed to parse JSON response:', text);
+                throw new Error(`Server error: ${text || 'Empty response'}`);
+            }
+        } else {
+            // Handle non-JSON responses (like HTML error pages)
+            const text = await response.text();
+            console.error('Non-JSON response:', text);
+            throw new Error(`Server error (${response.status}): Please try again`);
+        }
+        
         console.log('OCR Response:', data);
         
         updateProgress(100, 'Complete!');
@@ -434,12 +465,20 @@ async function processFiles() {
             displayResults(data);
             showToast('Extraction successful!', 'success');
             
-            // Update quota display
+            // Update quota display - ADD used_hits update
             if (data.remaining_hits !== undefined) {
                 document.getElementById('remainingHits').textContent = data.remaining_hits;
                 state.currentUser.api_usage.remaining_hits = data.remaining_hits;
-                localStorage.setItem('ocr_user', JSON.stringify(state.currentUser));
             }
+            
+            // ADD THIS BLOCK:
+            if (data.used_hits !== undefined) {
+                document.getElementById('usedHits').textContent = data.used_hits;
+                state.currentUser.api_usage.used_hits = data.used_hits;
+            }
+            
+            localStorage.setItem('ocr_user', JSON.stringify(state.currentUser));
+            
             if (data.warning) {
                 showToast(data.warning, 'warning');
             }

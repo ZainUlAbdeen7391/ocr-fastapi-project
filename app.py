@@ -47,6 +47,21 @@ app.add_middleware(
 )
 
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+# Check if static folder exists
+print(f"Static directory: {STATIC_DIR}")
+print(f"Exists: {os.path.exists(STATIC_DIR)}")
+if os.path.exists(STATIC_DIR):
+    print(f"Contents: {os.listdir(STATIC_DIR)}")
+
+# Mount static files (CSS, JS)
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+
 
 # ---------------- OCR Endpoints ---------------- #
 
@@ -92,6 +107,7 @@ async def extract_images(
             "message": "OCR extracted successfully",
             "text": cleaned_text,
             "remaining_hits": api.remaining_hits,
+            "used_hits": api.used_hits,
             "warning": warning
         })
 
@@ -124,15 +140,16 @@ async def extract_pdfs(
         cleaned_text = clean_text(raw_text, keep_newlines=True)
         combined_texts.append(cleaned_text)
 
-    return JSONResponse(content={
-        "success": True,
-        "valid": True,
-        "type": "pdf",
-        "message": "OCR extracted successfully",
-        "data": "\n\n".join(combined_texts),
-        "remaining_hits": api.remaining_hits,
-        "warning": warning
-    })
+        return JSONResponse(content={
+            "success": True,
+            "valid": True,
+            "type": "pdf",
+            "message": "OCR extracted successfully",
+            "data": "\n\n".join(combined_texts),
+            "remaining_hits": api.remaining_hits,
+            "used_hits": api.used_hits,
+            "warning": warning
+        })
 
 # Structured Output OCR
 
@@ -168,14 +185,26 @@ async def structure_text(
         structuring_prompt
     )
 
+    # Check if structure_with_gpt failed
+    if not gpt_response.get("success"):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "valid": False,
+                "message": gpt_response.get("message", "Failed to structure data")
+            }
+        )
+
     return JSONResponse(content={
-        "success": True,
-        "valid": True,
-        "type": ", ".join(processed_types),
-        "data": gpt_response.get("data"),
-        "remaining_hits": api.remaining_hits,
-        "warning": api.warning
-    })
+            "success": True,
+            "valid": True,
+            "type": ", ".join(processed_types),
+            "data": gpt_response.get("data"),
+            "remaining_hits": api.remaining_hits,
+            "used_hits": api.used_hits,  # ADD THIS
+            "warning": api.warning
+        })
 
 # ---------------- Auth Endpoints ---------------- #
 
@@ -271,161 +300,6 @@ async def login(data: LoginSchema, db: Session = Depends(get_db)):
     }
 
 
-
-
-# Get the directory where app.py is located
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Serve static files (your HTML, CSS, JS)
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
-
-# Serve index.html at the root URL
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi import HTTPException
-import os
-
-# Get absolute path
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-
-# Check if static folder exists
-print(f"Static directory: {STATIC_DIR}")
-print(f"Exists: {os.path.exists(STATIC_DIR)}")
-if os.path.exists(STATIC_DIR):
-    print(f"Contents: {os.listdir(STATIC_DIR)}")
-
-# Mount static files (CSS, JS)
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-# Serve frontend at root - THIS MUST BE AFTER ALL API ROUTES
-@app.get("/")
-async def root():
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    
-    # If index.html exists, serve it
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    
-    # Fallback to API info if no frontend
-    return {
-        "service": "Devminds OCR",
-        "status": "API Running",
-        "message": "Frontend not found. Place index.html in static/ folder",
-        "static_dir_exists": os.path.exists(STATIC_DIR),
-        "static_contents": os.listdir(STATIC_DIR) if os.path.exists(STATIC_DIR) else []
-    }
-
-# Catch-all for SPA routes (React/Vue/Angular style)
-# This handles /login, /dashboard, etc. by serving index.html
-
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi import HTTPException
-import os
-
-# Get absolute path
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-
-# Check if static folder exists
-print(f"Static directory: {STATIC_DIR}")
-print(f"Exists: {os.path.exists(STATIC_DIR)}")
-if os.path.exists(STATIC_DIR):
-    print(f"Contents: {os.listdir(STATIC_DIR)}")
-
-# Mount static files (CSS, JS)
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-# Serve frontend at root - THIS MUST BE AFTER ALL API ROUTES
-@app.get("/")
-async def root():
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    
-    # If index.html exists, serve it
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    
-    # Fallback to API info if no frontend
-    return {
-        "service": "Devminds OCR",
-        "status": "API Running",
-        "message": "Frontend not found. Place index.html in static/ folder",
-        "static_dir_exists": os.path.exists(STATIC_DIR),
-        "static_contents": os.listdir(STATIC_DIR) if os.path.exists(STATIC_DIR) else []
-    }
-
-# Catch-all for SPA routes (React/Vue/Angular style)
-# This handles /login, /dashboard, etc. by serving index.html
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi import HTTPException
-import os
-
-# Get absolute path
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-
-# Check if static folder exists
-print(f"Static directory: {STATIC_DIR}")
-print(f"Exists: {os.path.exists(STATIC_DIR)}")
-if os.path.exists(STATIC_DIR):
-    print(f"Contents: {os.listdir(STATIC_DIR)}")
-
-# Mount static files (CSS, JS)
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-# Serve frontend at root - THIS MUST BE AFTER ALL API ROUTES
-@app.get("/")
-async def root():
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    
-    # If index.html exists, serve it
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    
-    # Fallback to API info if no frontend
-    return {
-        "service": "Devminds OCR",
-        "status": "API Running",
-        "message": "Frontend not found. Place index.html in static/ folder",
-        "static_dir_exists": os.path.exists(STATIC_DIR),
-        "static_contents": os.listdir(STATIC_DIR) if os.path.exists(STATIC_DIR) else []
-    }
-
-# Catch-all for SPA routes (React/Vue/Angular style)
-# This handles /login, /dashboard, etc. by serving index.html
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from fastapi import HTTPException
-import os
-
-# Get the directory where app.py is located
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-
-# Mount static files (CSS, JS, images)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-# Serve index.html at root URL
-@app.get("/")
-async def serve_frontend():
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    
-    # Check if file exists and serve it
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    
-    # If not found, return error info
-    return {
-        "error": "Frontend not found",
-        "looking_for": index_path,
-        "static_dir_exists": os.path.exists(STATIC_DIR),
-        "files_in_static": os.listdir(STATIC_DIR) if os.path.exists(STATIC_DIR) else []
-    }
 
 # Handle all other routes (for SPA navigation)
 @app.get("/{path:path}")

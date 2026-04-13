@@ -50,6 +50,9 @@ def verify_api_key_only(
         })
 
     # ---------------- INCREMENT HITS ---------------- #
+
+    # ---------------- INCREMENT HITS ---------------- #
+    
     api.used_hits += 1
     db.commit()
     db.refresh(api)
@@ -69,13 +72,6 @@ def verify_api_key_only(
         warning = (
             "This is your last request for this month. "
             "Consider upgrading to Pro for uninterrupted access."
-        )
-        
-
-    elif remaining == 0:
-        raise HTTPException(
-            status_code=429,
-            detail="You’ve reached your monthly quota. Kindly upgrade to Pro."
         )
 
     return {
